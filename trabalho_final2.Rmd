@@ -1,0 +1,239 @@
+---
+title: "Trabalho Final"
+author: "Thiago Tavares Lopes"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+```{r, include=FALSE}
+source("funcoes.R")
+library(tidyverse)
+library(forecast)
+library(TSstudio)
+library(lmtest)
+library(MASS)
+library(kableExtra)
+library(knitr)
+```
+
+
+```{r include=FALSE}
+# TAXA DE DESEMPREGO ALEMANHA
+taxas_desemprego <- readxl::read_excel("taxas_desempregos.xlsx")
+taxas_desemprego <- na.omit(taxas_desemprego[,c(1, 2)])
+taxas_desemprego$`3785 - Taxa de desemprego - Alemanha - %`<-as.numeric(taxas_desemprego$`3785 - Taxa de desemprego - Alemanha - %`)
+taxas_desemprego$`3785 - Taxa de desemprego - Alemanha - %` <- taxas_desemprego$`3785 - Taxa de desemprego - Alemanha - %`/100 
+
+# PREÇOS DE OURO
+gold_price <- readr::read_csv("gold_price_13to23.csv")
+
+gold_price <- gold_price |> 
+  mutate(Date = as.Date(Date, format = "%m/%d/%Y"))
+
+media_mensal <- gold_price |> 
+  mutate(Month = floor_date(Date, "month")) |> 
+  group_by(Month) |> 
+  summarise(Average_Price = mean(Price, na.rm = TRUE))
+#View(media_mensal)
+
+```
+
+
+```{r include=FALSE}
+# SERIE DESEMPREGO
+serie_desemprego <- ts(taxas_desemprego$`3785 - Taxa de desemprego - Alemanha - %`, start = c(1994, 1), end = c(2016, 6), frequency = 12)
+
+# SERIE GOLD PRICE
+serie_gold_price <- ts(media_mensal$Average_Price, frequency=12, start=c(2013,1))
+
+```
+
+
+# Análise Taxa de Desemprego
+
+```{r, include=FALSE}
+
+# raiz_unit(serie_desemprego)
+# tend_determ(serie_desemprego)
+# sazonalidade(serie_desemprego)
+
+```
+
+
+
+```{r include=FALSE}
+
+# serie_desemprego_part <- ts_split(serie_desemprego, sample.out = 12)
+# serie_desemprego_train <- serie_desemprego_part$train
+# serie_desemprego_test <- serie_desemprego_part$test
+# 
+# 
+# modelo1 <- auto.arima(serie_desemprego_train)
+# 
+# summary(modelo1)
+# 
+# modelo1_fc <- forecast::forecast(modelo1, h = 12)
+# 
+# coeftest(modelo1)
+# 
+# forecast::accuracy(modelo1_fc, serie_desemprego_test)[,c(1:3, 5)]
+# 
+# AIC(modelo1)
+# 
+# modelo_sarima <- arima(serie_desemprego_train, order = c(1, 1, 1), list(order = c(0L, 0L, 2), period = 2))
+# 
+# AIC(modelo_sarima)
+# coeftest(modelo_sarima)
+
+
+# aqui o modelo nao perfomou bem
+
+```
+
+
+```{r}
+# MODELO ARFIMA
+
+library(fracdiff)  # Principal pacote para ARFIMA
+library(forecast)  # Para funções auxiliares
+library(pracma)
+
+hurstexp(serie_desemprego) # pelos resultados há memória longa
+
+
+fdGPH(serie_desemprego)
+
+```
+```{r}
+
+
+serie_desemprego_diff <- diff(serie_desemprego, d = 1)
+
+fdGPH(serie_desemprego_diff)
+
+```
+
+```{r}
+
+# modelo_arfima_desemp <- fracdiff(serie_desemprego_diff, nar = 0, nma=1)
+# 
+# summary(modelo_arfima_desemp)
+# AIC(modelo_arfima_desemp)
+# 
+# coeftest(modelo_arfima_desemp)
+
+library(arfima)
+
+X = serie_desemprego-mean(serie_desemprego)
+
+X_part <- ts_split(X, sample.out = 12)
+X_train <- X_part$train
+X_test <- X_part$test
+
+modelo_arfima_desemp2 <- arfima(X_train, order = c(2,1,0))
+
+summary(modelo_arfima_desemp2)
+
+resid<-residuals(modelo_arfima_desemp2)
+
+forecast::checkresiduals(resid$Mode1)
+
+AIC(modelo_arfima_desemp2)
+
+pred<-predict(modelo_arfima_desemp2, n.ahead = 12)
+
+print(pred)
+```
+
+
+```{r}
+
+plot(pred, main = "Valores preditos | h = 12")
+
+```
+
+
+# Análise Preço do Ouro
+
+
+```{r}
+
+raiz_unit(serie_gold_price)
+tend_determ(serie_gold_price)
+sazonalidade(serie_gold_price)
+
+plot(decompose(serie_gold_price))
+
+serie_gold_part <- ts_split(serie_gold_price, sample.out = 12)
+
+serie_gold_train <- serie_gold_part$train
+serie_gold_test <- serie_gold_part$test
+
+```
+```{r}
+fit1 <- auto.arima(serie_gold_train, seasonal = FALSE)
+
+summary(fit1)
+
+
+hurstexp(serie_gold_train) # pelos resultados há memória longa
+
+
+fdGPH(serie_gold_train)
+
+
+fit2 <- Arima(serie_gold_price, order = c(0,0,10))
+summary(fit2)
+
+coeftest(fit2)
+
+
+forecast::checkresiduals(fit2$residuals)
+
+y <- serie_gold_price - mean(serie_gold_price)
+
+
+y_diff <- diff(y)
+
+fit3 <- Arima(y, order = c(1,0,1))
+summary(fit3)
+coeftest(fit3)
+
+
+fit4 <- arfima(serie_gold_price, order = c(0,1,3))
+
+summary(fit4)
+
+
+```
+
+
+```{r}
+fit_netar <- forecast::nnetar(serie_gold_train)
+
+
+fit_netar_fc <- forecast::forecast(fit_netar, h = 12)
+
+accuracy(fit_netar_fc, serie_gold_test)[,c(1:3,5)]
+
+checkresiduals(fit_netar$residuals)
+
+
+plot(fit_netar_fc)
+
+
+```
+
+
+```{r}
+
+test_forecast(actual = serie_gold_price,
+              forecast.obj = fit_netar_fc,
+              test = serie_gold_test)
+
+```
+
+
