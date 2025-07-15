@@ -7,6 +7,9 @@ output:
     css: "estilo.css"
     toc: true
     toc_depth: 2
+bibliography: referencias.bib
+nocite: '@*'
+#csl: abnt.csl
 ---
 
 ```{r, include=FALSE}
@@ -287,25 +290,56 @@ serie_gold_train <- serie_gold_part$train
 serie_gold_test <- serie_gold_part$test
 ```
 
+### Modelo com Redes Neurais
 
+Após a tentativa de ajuste dos modelos clássicos como  ARMA, ARIMA e SARIMA, os quais não performaram de maneira adequada, optou-se por desenvolver um modelo de no qual se utiliza séries temporais.  
 
-```{r}
+```{r include=FALSE}
 fit_netar <- forecast::nnetar(serie_gold_train)
-
-fit_netar_fc <- forecast::forecast(fit_netar, h = 12)
-
-accuracy(fit_netar_fc, serie_gold_test)[,c(1:3,5)]
-
-checkresiduals(fit_netar$residuals)
-
-
-plot(fit_netar_fc)
-
 
 ```
 
 
-```{r}
+```{r include=FALSE}
+fit_netar_fc <- forecast::forecast(fit_netar, h = 12)
+
+acuracia<-accuracy(fit_netar_fc, serie_gold_test)[,c(1:3,5)]
+acuracia<-as.data.frame(acuracia)
+```
+
+
+A Tabela 4 apresenta os resultados das métricas de avaliação do modelo ajustado à série temporal de preços mensais do ouro, considerando os conjuntos de treinamento e teste. As métricas utilizadas incluem o erro médio (ME), a raiz do erro quadrático médio (RMSE), o erro absoluto médio (MAE) e o erro percentual absoluto médio (MAPE).
+
+No conjunto de treinamento, o modelo apresentou desempenho satisfatório, com erro médio próximo de zero (ME = -0.0021), o que indica ausência de viés sistemático nas previsões. O RMSE de 38.17 e o MAE de 29.50 indicam que os erros de previsão, em média, são relativamente baixos, considerando a escala dos dados. O MAPE de 2.16% reforça essa avaliação, sinalizando boa acurácia relativa das previsões no período de ajuste.
+
+No entanto, ao se analisar o desempenho no conjunto de teste, observa-se um aumento significativo nos erros. O erro médio passou a 3.23, indicando leve superestimação sistemática. O RMSE e o MAE aumentaram para 86.83 e 73.11, respectivamente, sugerindo maior variabilidade e magnitude dos erros. O MAPE alcançou 4.05%, valor ainda aceitável, mas que indica uma queda na precisão relativa do modelo fora da amostra.
+
+Esses resultados sugerem que, embora o modelo apresente bom ajuste aos dados históricos, seu desempenho preditivo fora da amostra é sensivelmente inferior, o que pode estar relacionado a mudanças estruturais recentes na série ou à presença de eventos atípicos. Assim, a reavaliação da estrutura do modelo, bem como o uso de abordagens mais robustas ou modelos com capacidade adaptativa, pode ser recomendada para melhorar a capacidade preditiva.
+
+
+```{r, echo=FALSE}
+
+acuracia |> kbl(caption = "Tabela 4: Métricas de Avaliação do Modelo") |> 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+A Figura apresenta os diagnósticos dos resíduos do modelo ajustado à série temporal de preços do ouro. O painel superior exibe o gráfico da série residual ao longo do tempo, o qual não indica a presença de padrões sistemáticos ou comportamento estrutural, sugerindo que os resíduos se comportam como ruído branco. A análise da função de autocorrelação dos resíduos (ACF), mostrada no painel inferior esquerdo, demonstra que a maioria dos coeficientes de autocorrelação até a defasagem 36 encontra-se dentro dos limites de confiança de 95% (linhas tracejadas azuis), indicando ausência de autocorrelação significativa nas defasagens avaliadas. O histograma dos resíduos, no painel inferior direito, mostra uma distribuição aproximadamente simétrica em torno de zero, com leve curtose e presença de poucos valores extremos. A curva de densidade ajustada reforça essa proximidade com a distribuição normal, embora pequenas assimetrias possam ser observadas. Adicionalmente, o teste de Ljung-Box foi aplicado para avaliar a hipótese de ausência de autocorrelação nos resíduos até a defasagem 22. O valor do estatístico foi  𝑄∗=17,917, com 22 graus de liberdade e p-valor de 0{,}7109. Como o p-valor é elevado, não se rejeita a hipótese nula de que os resíduos são independentes. Isso reforça a adequação do modelo ajustado, do ponto de vista da estrutura de dependência serial dos resíduos. 
+Em conjunto, os resultados indicam que os resíduos do modelo apresentam comportamento satisfatório, compatível com as suposições de normalidade e ausência de autocorrelação, o que contribui para a validade das inferências e previsões derivadas do modelo.
+
+```{r, fig.align='center'}
+checkresiduals(fit_netar$residuals)
+
+```
+
+Por fim, foram gerados os gráficos de previsão que se encontram abaixo.
+
+```{r, echo=FALSE, fig.align='center'}
+plot(fit_netar_fc)
+```
+
+
+```{r, echo=FALSE, fig.align='center'}
 
 test_forecast(actual = serie_gold_price,
               forecast.obj = fit_netar_fc,
@@ -313,4 +347,4 @@ test_forecast(actual = serie_gold_price,
 
 ```
 
-
+# Referências {-}
