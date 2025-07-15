@@ -4,6 +4,7 @@ author: "Thiago Tavares Lopes"
 date: "`r Sys.Date()`"
 output: 
   html_document:
+    css: "estilo.css"
     toc: true
     toc_depth: 2
 ---
@@ -19,6 +20,10 @@ library(kableExtra)
 library(knitr)
 ```
 
+
+# Análise Taxa de Desemprego Alemanha
+
+Nesta seção, são apresentados os resultados da análise da taxa de desemprego mensal na Alemanha, no período de 1994 a 2016. Como os dados estão expressos em porcentagem, foi necessário convertê-los para proporções, dividindo os valores por 100. A série contém um total de 272 observações, obtidas por meio do sistema de gerenciamento de séries temporais do Banco Central do Brasil.
 
 ```{r include=FALSE}
 # TAXA DE DESEMPREGO ALEMANHA
@@ -47,18 +52,66 @@ media_mensal <- gold_price |>
 serie_desemprego <- ts(taxas_desemprego$`3785 - Taxa de desemprego - Alemanha - %`, start = c(1994, 1), end = c(2016, 6), frequency = 12)
 
 # SERIE GOLD PRICE
-serie_gold_price <- ts(media_mensal$Average_Price, frequency=12, start=c(2013,1))
+serie_gold_price <- ts(media_mensal$Average_Price, start=c(2013,1),  frequency=12)
 
 ```
 
+Abaixo temos uma descritiva dos valores da série e também seu *Box-plot*, podemos notar que não há presença de *outliers*. 
 
-# Análise Taxa de Desemprego
+```{r}
+summary(serie_desemprego)
 
-```{r, include=FALSE}
+```
+```{r echo=FALSE, fig.align='center'}
+boxplot(serie_desemprego)
+```
 
-# raiz_unit(serie_desemprego)
-# tend_determ(serie_desemprego)
-# sazonalidade(serie_desemprego)
+A Figura a seguir exibe a série temporal da taxa de desemprego mensal na Alemanha no período de 1994 a 2016. Verifica-se uma tendência de aumento na taxa de desemprego entre 2002 e 2005, atingindo seu pico nesse intervalo. A partir de 2006, observa-se um movimento de queda contínua, o qual se mantém até o término do período analisado, indicando uma possível recuperação sustentada do mercado de trabalho alemão.
+
+
+```{r echo=FALSE, fig.align='center'}
+
+ts.plot(serie_desemprego)
+
+```
+Por conseguinte, temos a decomposição da série para tedência e sazonalidade:
+
+```{r, echo=FALSE, fig.align='center'}
+plot(decompose(serie_desemprego))
+```
+
+
+
+
+```{r, echo=FALSE, fig.align='center'}
+# library(dygraphs)
+# dygraphs::dygraph(serie_desemprego)
+
+```
+A avaliação da estacionariedade da série foi conduzida por meio de testes de raiz unitária, conforme apresentado na Tabela 1. Os testes de Augmented Dickey-Fuller (ADF) e Phillips-Perron (PP) não rejeitaram a hipótese nula de presença de tendência estocástica (p-valores de 0.5579 e 0.9630, respectivamente), sugerindo que a série possui raiz unitária. No entanto, o teste KPSS para nível, cuja hipótese nula é de estacionariedade em torno de uma média constante, foi rejeitado (p-valor = 0.0100), corroborando a evidência de não estacionariedade. Esse conjunto de resultados indica a presença de uma tendência estocástica na série.
+
+A Tabela 2 apresenta os resultados dos testes para identificação de tendência determinística. Todos os testes aplicados (Cox-Stuart, Cox and Stuart Trend, Mann-Kendall, Mann-Kendall Trend e KPSS para tendência) rejeitaram a hipótese nula de ausência de tendência (p-valores ≤ 0.01), indicando de forma consistente a presença de uma tendência determinística ao longo do tempo.
+
+Por fim, a Tabela 3 resume os resultados dos testes de sazonalidade. O teste de Kruskal-Wallis não rejeitou a hipótese nula de ausência de sazonalidade (p-valor = 1.0000), enquanto o teste de Friedman detectou evidência de sazonalidade significativa (p-valor = 0.0181). Assim, embora haja alguma indicação de componente sazonal, os resultados são inconclusivos e sugerem que, se presente, a sazonalidade não é fortemente expressiva.
+
+
+```{r echo=FALSE}
+
+raiz <- raiz_unit(serie_desemprego) 
+
+raiz$Tabela |> kbl(caption = "Tabela 1: Resultados testes de raiz unitária") |> 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+trend <- tend_determ(serie_desemprego)
+
+trend$Tabela |> kbl(caption = "Tabela 2: Resultados teste de tendência determinística") |> 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+
+saz <- sazonalidade(serie_desemprego)
+
+saz$Tabela |> kbl(caption = "Tabela 3: Resultados teste de sazonalidade") |> 
+  kable_classic(full_width = F, html_font = "Cambria")
 
 ```
 
@@ -93,30 +146,38 @@ serie_gold_price <- ts(media_mensal$Average_Price, frequency=12, start=c(2013,1)
 
 ```
 
+## Ajuste do Modelo
+Para investigar a presença de dependência de longo prazo na série temporal da taxa de desemprego, estimou-se o expoente de Hurst por diferentes métodos. Conforme apresentado, a estimativa simples baseada no método R/S (rescaled range) resultou em um valor de 0.8373, enquanto a versão corrigida apresentou um valor ainda mais elevado, de 0.9856. Já o expoente de Hurst empírico foi estimado em 0.8267, com a versão corrigida indicando 0.7992. Todos os valores obtidos são significativamente superiores a 0,5, o que evidencia forte persistência temporal na série. Isso implica que choques passados tendem a ter efeitos prolongados ao longo do tempo, o que é característico de processos com memória longa.
 
-```{r}
+Adicionalmente, foi estimado o parâmetro de diferenciação fracionária *d* , com valor de 1.1003, indicando que a série é fracamente não estacionária e apresenta memória longa, uma vez que $0.5<d<1.5$. As estimativas do desvio padrão associado, obtidas via aproximação assintótica e via regressão, foram de 0.2102 e 0.1232, respectivamente, reforçando a robustez da estimação de *d*.
+
+Esses resultados sugerem que, para a modelagem adequada da série, é necessário considerar abordagens que capturem a estrutura de longa dependência, como modelos ARFIMA.
+
+```{r, include=FALSE}
 # MODELO ARFIMA
 
 library(fracdiff)  # Principal pacote para ARFIMA
 library(forecast)  # Para funções auxiliares
 library(pracma)
 
+```
+
+
+```{r, echo=FALSE}
 hurstexp(serie_desemprego) # pelos resultados há memória longa
 
-
 fdGPH(serie_desemprego)
-
 ```
-```{r}
 
-
+```{r, include=FALSE}
 serie_desemprego_diff <- diff(serie_desemprego, d = 1)
 
 fdGPH(serie_desemprego_diff)
-
 ```
 
-```{r}
+Por fim, foi considerado um modelo ARFIMA(2, 1, 0), ou seja, dois coeficientes autoregressivos e uma diferenciação. Sendo os valores estimados dos parâmetros  significativos, a 5\% são: $\phi_{1}=0.48, \phi_{2}=0.45, \text{fractional differencing}=-0.26$. Além disso temos, $\text{AIC}=-3775.07, \text{BIC}=-3757.3$. Vale ressaltar que um valor negativo para *fractional differencing* não é o mais adequado.
+
+```{r, include=FALSE}
 
 # modelo_arfima_desemp <- fracdiff(serie_desemprego_diff, nar = 0, nma=1)
 # 
@@ -139,17 +200,33 @@ summary(modelo_arfima_desemp2)
 
 resid<-residuals(modelo_arfima_desemp2)
 
-forecast::checkresiduals(resid$Mode1)
-
-AIC(modelo_arfima_desemp2)
+#AIC(modelo_arfima_desemp2)
 
 pred<-predict(modelo_arfima_desemp2, n.ahead = 12)
 
-print(pred)
 ```
 
+## Análise de resíduos e Previsão
 
-```{r}
+A Figura apresenta os diagnósticos dos resíduos do modelo ajustado. O gráfico superior exibe a série dos resíduos ao longo do tempo, os quais oscilam em torno de zero sem apresentar padrões sistemáticos visíveis, sugerindo ausência de estrutura temporal remanescente. A análise da função de autocorrelação (ACF), apresentada no gráfico inferior esquerdo, demonstra que os resíduos não apresentam autocorrelação significativa até a defasagem 25, uma vez que a maioria dos coeficientes está contida dentro dos limites de confiança. A normalidade dos resíduos foi avaliada por meio do histograma com sobreposição de uma curva de densidade normal (gráfico inferior direito). A distribuição dos resíduos aproxima-se de uma distribuição normal, com leve assimetria, porém sem evidências visuais de desvios em escala.
+
+Por fim, foi realizado o teste de Ljung-Box para avaliar a independência dos resíduos. O valor do estatístico $Q∗=9,5962$ com 10 graus de liberdade resultou em um p-valor de 0,4766. Dessa forma, não se rejeita a hipótese nula de ausência de autocorrelação nos resíduos até a defasagem 10, indicando que os resíduos podem ser considerados independentes ao longo do tempo.
+
+```{r, fig.align='center'}
+forecast::checkresiduals(resid$Mode1)
+```
+
+Nas imagens abaixo temos acf e pacf dos resíduos do modelo ajustado.
+
+```{r, echo=FALSE, fig.align='center'}
+
+acf(resid$Mode1)
+pacf(resid$Mode1)
+
+```
+Por fim, a Figura abaixo apresenta os valores preditos para os próximos 12 períodos, com base no modelo ajustado à série temporal. A linha em cinza representa a previsão pontual (Exact prediction), enquanto as faixas tracejadas indicam os intervalos de predição com 95% de confiança. O intervalo tracejado em vermelho corresponde ao intervalo de predição exato (Exact 95% PI), enquanto o intervalo tracejado em laranja refere-se ao intervalo assintótico (Limiting 95% PI), o qual se alarga com o aumento do horizonte de previsão, refletindo o crescimento da incerteza associada às estimativas futuras.
+
+```{r, echo=FALSE, fig.align='center'}
 
 plot(pred, main = "Valores preditos | h = 12")
 
@@ -158,62 +235,62 @@ plot(pred, main = "Valores preditos | h = 12")
 
 # Análise Preço do Ouro
 
+O ouro é um ativo financeiro para exportação, investimentos de longo prazo, consumo industrial e câmbio de moedas estrangeiras.  Segundo The Gold Bullion Company, o Brasil ocupa o 7° lugar no balanço mundial de oferta e demanda de ouro, com este contexto foi feito uma análise da série histórica do preço de comercialização diária do ouro(em quilogramas) entre os anos de 2013 a 2023. O *Dataset* utilizado pode ser acesso neste link do Kaggle [Gold Price Prediction](https://www.kaggle.com/code/farzadnekouei/gold-price-prediction-lstm-96-accuracy). Os dados foram agrupados mensalmente, e ao todo temos 120 observações, o que representaria 120 meses.
 
+
+```{r, echo=FALSE}
+boxplot(serie_gold_price)
+```
 ```{r}
+summary(serie_gold_price)
+```
 
-raiz_unit(serie_gold_price)
-tend_determ(serie_gold_price)
-sazonalidade(serie_gold_price)
+A Figura a seguir apresenta a série temporal dos preços mensais do ouro no período de 2013 a 2023. A partir de uma análise visual preliminar, não se observa evidência clara de sazonalidade na série. Destaca-se, entretanto, um aumento expressivo nos preços entre os anos de 2019 e 2021. 
 
+```{r, echo=FALSE, fig.align='center'}
+ts.plot(serie_gold_price)
+```
+
+Temos também a decomposição da série para tendência e sazonalidade na Figura abaixo:
+
+```{r, echo=FALSE, fig.align='center'}
 plot(decompose(serie_gold_price))
+```
+Conforme os resultados apresentados na Tabela 1, os testes de raiz unitária indicam a presença de uma tendência estocástica na série. Tanto o teste de Augmented Dickey-Fuller (ADF) quanto o teste de Phillips-Perron não rejeitam a hipótese nula de presença de raiz unitária (p-valores de 0.3553 e 0.5252, respectivamente), sugerindo que a série não é estacionária. Por outro lado, o teste KPSS rejeita a hipótese nula de estacionariedade em torno de uma média constante (p-valor = 0.0100), reforçando a conclusão de não estacionariedade e indicando a presença de uma tendência. A Tabela 2 apresenta os resultados dos testes para identificação de tendência determinística. Todos os testes aplicados, incluindo Cox-Stuart, Mann-Kendall e KPSS para tendência, rejeitaram a hipótese nula de ausência de tendência com p-valores inferiores a 0.01. Esse conjunto de evidências confirma a existência de uma tendência determinística significativa ao longo do tempo, o que é compatível com a trajetória ascendente observada na série, especialmente a partir de 2019.
 
+A análise de sazonalidade, sumarizada na Tabela 3, foi conduzida por meio dos testes de Kruskal-Wallis e Friedman rank. Em ambos os casos, os p-valores elevados (0.9991 e 0.8554, respectivamente) indicam que não há evidência estatística para rejeitar a hipótese nula de ausência de sazonalidade. Assim, conclui-se que a série não apresenta comportamento sazonal recorrente. Em conjunto, os resultados apontam que a série é não estacionária, possui uma tendência determinística significativa e não apresenta componentes sazonais, o que deve ser considerado na escolha e especificação de modelos de previsão adequados.
+
+```{r, echo=FALSE}
+
+raiz2 <- raiz_unit(serie_gold_price) 
+
+raiz2$Tabela |> kbl(caption = "Tabela 1: Resultados testes de raiz unitária") |> 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+trend2 <- tend_determ(serie_gold_price)
+
+trend2$Tabela |> kbl(caption = "Tabela 2: Resultados teste de tendência determinística") |> 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+
+saz2 <- sazonalidade(serie_gold_price)
+
+saz2$Tabela |> kbl(caption = "Tabela 3: Resultados teste de sazonalidade") |> 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+
+```{r, include=FALSE}
 serie_gold_part <- ts_split(serie_gold_price, sample.out = 12)
-
 serie_gold_train <- serie_gold_part$train
 serie_gold_test <- serie_gold_part$test
-
 ```
-```{r}
-fit1 <- auto.arima(serie_gold_train, seasonal = FALSE)
 
-summary(fit1)
-
-
-hurstexp(serie_gold_train) # pelos resultados há memória longa
-
-
-fdGPH(serie_gold_train)
-
-
-fit2 <- Arima(serie_gold_price, order = c(0,0,10))
-summary(fit2)
-
-coeftest(fit2)
-
-
-forecast::checkresiduals(fit2$residuals)
-
-y <- serie_gold_price - mean(serie_gold_price)
-
-
-y_diff <- diff(y)
-
-fit3 <- Arima(y, order = c(1,0,1))
-summary(fit3)
-coeftest(fit3)
-
-
-fit4 <- arfima(serie_gold_price, order = c(0,1,3))
-
-summary(fit4)
-
-
-```
 
 
 ```{r}
 fit_netar <- forecast::nnetar(serie_gold_train)
-
 
 fit_netar_fc <- forecast::forecast(fit_netar, h = 12)
 
